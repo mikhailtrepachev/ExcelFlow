@@ -8,7 +8,7 @@
         <LangVersion>latest</LangVersion>
 
         <PackageId>ExcelFlow</PackageId>
-        <Version>1.0.2</Version>
+        <Version>1.0.3</Version>
         <Authors>Mikhail Trepachev</Authors>
         <Company>Mikhail Trepachev</Company>
         <Description>Ultra-fast, memory-efficient, and strictly typed Excel (.xlsx) reader and writer for modern .NET. Uses forward-only streaming and Expression Trees to process hundreds of thousands of rows with minimal RAM.</Description>
