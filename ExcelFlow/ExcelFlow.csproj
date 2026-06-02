@@ -1,14 +1,30 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
+        <Nullable>disable</Nullable>
+        <LangVersion>latest</LangVersion>
+
+        <PackageId>ExcelFlow</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>Mikhail Trepachev</Authors>
+        <Company>Mikhail Trepachev</Company>
+        <Description>Ultra-fast, memory-efficient, and strictly typed Excel (.xlsx) reader and writer for modern .NET. Uses forward-only streaming and Expression Trees to process hundreds of thousands of rows with minimal RAM.</Description>
+        <PackageTags>excel;xlsx;openxml;linq;orm;streaming;performance;parser</PackageTags>
+
+        <RepositoryUrl>https://github.com/mikhailtrepachev/ExcelFlow</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="DocumentFormat.OpenXml" Version="3.1.1" />
-      <PackageReference Include="ExcelDataReader" Version="3.8.0" />
+        <PackageReference Include="DocumentFormat.OpenXml" Version="3.0.2" />
+        <PackageReference Include="ExcelDataReader" Version="3.7.0" />
+
+        <PackageReference Include="System.IO.Packaging" Version="8.0.1" />
     </ItemGroup>
 
 </Project>
