@@ -12,7 +12,7 @@ public static class ExpressionCompiler
         
         UnaryExpression convertedValue = Expression.Convert(valueParam, propertyInfo.PropertyType);
         
-        MethodCallExpression setterCall = Expression.Call(instanceParam, propertyInfo.GetSetMethod(true), convertedValue);
+        MethodCallExpression setterCall = Expression.Call(instanceParam, propertyInfo.GetSetMethod(true)!, convertedValue);
         
         Expression<Action<T, object>> lambda = Expression.Lambda<Action<T, object>>(setterCall, instanceParam, valueParam);
         

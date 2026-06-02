@@ -5,7 +5,7 @@ using DocumentFormat.OpenXml.Spreadsheet;
 
 namespace ExcelFlow;
 
-public static class ExcelExtensions
+internal static class ExcelExtensions
 {
     public static void ToExcel<T>(this IEnumerable<T> data, string filePath, string sheetName) where T : class
     {
@@ -58,10 +58,8 @@ public static class ExcelExtensions
             }
             writer.WriteEndElement();
             
-            foreach (T? item in data)
+            foreach (T item in data)
             {
-                if (item == null) continue;
-
                 writer.WriteStartElement(new Row());
                 foreach (ExportColumnMap<T> col in exportMap)
                 {
@@ -74,7 +72,7 @@ public static class ExcelExtensions
                     }
                     else if (value is int || value is long || value is decimal || value is double || value is float)
                     {
-                        cell.CellValue = new CellValue(Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture));
+                        cell.CellValue = new CellValue(Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? string.Empty);
                         cell.DataType = CellValues.Number;
                     }
                     else if (value is DateTime dateTime)
@@ -89,7 +87,7 @@ public static class ExcelExtensions
                     }
                     else
                     {
-                        cell.CellValue = new CellValue(value.ToString());
+                        cell.CellValue = new CellValue(value.ToString() ?? string.Empty);
                         cell.DataType = CellValues.String;
                     }
 
@@ -128,13 +126,16 @@ public static class ExcelExtensions
         
         if (underlyingType == typeof(DateTime))
         {
-            if (value is DateTime dt) return (dt, true);
+            if (value is DateTime dt) 
+                return (dt, true);
 
-            if (value is double d) return (DateTime.FromOADate(d), true);
+            if (value is double d) 
+                return (DateTime.FromOADate(d), true);
 
             if (value is string strDate)
             {
-                if (DateTime.TryParse(strDate, out var parsedDt)) return (parsedDt, true);
+                if (DateTime.TryParse(strDate, out DateTime parsedDt)) 
+                    return (parsedDt, true);
             
                 if (double.TryParse(strDate.Replace(',', '.'), 
                         System.Globalization.NumberStyles.Any, 

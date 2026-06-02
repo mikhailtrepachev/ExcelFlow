@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using System.Runtime.CompilerServices;
 using ExcelDataReader;
 
 namespace ExcelFlow;
@@ -20,25 +21,25 @@ public class ExcelColumnAttribute : Attribute
     public ExcelColumnAttribute(string name) => Name = name;
 }
 
-public record ColumnMapEntry<T>(
+internal record ColumnMapEntry<T>(
     int Index,
     string ColumnName,
     Type PropertyType,
     Action<T, object> Setter);
 
-public record ExportColumnMap<T>(
+internal record ExportColumnMap<T>(
     string ColumnName,
     Type PropertyType,
     Func<T, object> Getter);
 
-public class ExcelContext : IDisposable
+internal class ExcelContext : IDisposable
 {
     private readonly Stream _fileStream;
 
     private readonly IExcelDataReader _reader;
 
     private readonly bool _leaveOpen;
-
+    
     /// <summary>
     /// Creates a new ExcelContext with the given file path 
     /// </summary>
@@ -76,15 +77,92 @@ public class ExcelContext : IDisposable
         });
     }
 
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="sheetName"></param>
-    /// <typeparam name="T"></typeparam>
-    /// <returns></returns>
-    /// <exception cref="Exception"></exception>
-    /// <exception cref="NotImplementedException"></exception>
-    public IEnumerable<T> Worksheet<T>(string sheetName = null, Action<ExcelParseError> onError = null) where T : new()
+    public IEnumerable<T> Worksheet<T>(string? sheetName = null, Action<ExcelParseError>? onError = null)
+        where T : new()
+    {
+        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap<T>(sheetName);
+
+        if (columnMap == null)
+            yield break;
+
+        int rowNumber = 1;
+
+        while (_reader.Read())
+        {
+            rowNumber++;
+            T item = new T();
+
+            foreach (ColumnMapEntry<T> col in columnMap)
+            {
+                object? rawValue = _reader.GetValue(col.Index);
+                (object? safeValue, bool isSuccess) = ExcelExtensions.SafeConvert(rawValue, col.PropertyType);
+
+                if (!isSuccess)
+                {
+                    onError?.Invoke(new ExcelParseError(
+                        RowNumber: rowNumber,
+                        ColumnName: col.ColumnName,
+                        RawValue: rawValue?.ToString() ?? string.Empty,
+                        ExpectedType: col.PropertyType.Name
+                    ));
+                    continue;
+                }
+
+                col.Setter(item, safeValue ?? string.Empty);
+            }
+
+            yield return item;
+        }
+    }
+    
+    public async IAsyncEnumerable<T> WorksheetAsync<T>(
+        string? sheetName = null,
+        Action<ExcelParseError>? onError = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : new()
+    {
+        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap<T>(sheetName);
+        
+        if (columnMap == null)
+            yield break;
+        
+        int rowNumber = 1;
+
+        while (_reader.Read())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (rowNumber % 1000 == 0)
+            {
+                await Task.Yield();
+            }
+            
+            rowNumber++;
+            T item = new T();
+            
+            foreach (ColumnMapEntry<T> col in columnMap)
+            {
+                object? rawValue = _reader.GetValue(col.Index);
+                (object? safeValue, bool isSuccess) = ExcelExtensions.SafeConvert(rawValue, col.PropertyType);
+
+                if (!isSuccess)
+                {
+                    onError?.Invoke(new ExcelParseError(
+                        RowNumber: rowNumber,
+                        ColumnName: col.ColumnName, 
+                        RawValue: rawValue?.ToString() ?? string.Empty,
+                        ExpectedType: col.PropertyType.Name
+                    ));
+                    continue;
+                }
+
+                col.Setter(item, safeValue ?? string.Empty);
+            }
+            
+            yield return item;
+        }
+    }
+
+    private List<ColumnMapEntry<T>>? PrepareColumnMap<T>(string? sheetName)
     {
         bool sheetFound = false;
 
@@ -101,9 +179,8 @@ public class ExcelContext : IDisposable
             throw new Exception($"Sheet {sheetName} not found");
         
         // Read header
-        
         if (!_reader.Read())
-            yield break;
+            return null;
         
         Dictionary<string, int> headerMap = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
 
@@ -140,36 +217,8 @@ public class ExcelContext : IDisposable
                 ));
             }
         }
-        
-        int rowNumber = 1;
 
-        while (_reader.Read())
-        {
-            rowNumber++;
-            
-            T? item = new T();
-
-            foreach (ColumnMapEntry<T> col in columnMap)
-            {
-                object? rawValue = _reader.GetValue(col.Index);
-        
-                (object? safeValue, bool isSuccess) = ExcelExtensions.SafeConvert(rawValue, col.PropertyType);
-
-                if (!isSuccess && onError != null)
-                {
-                    onError.Invoke(new ExcelParseError(
-                        RowNumber: rowNumber,
-                        ColumnName: col.ColumnName, 
-                        RawValue: rawValue?.ToString(),
-                        ExpectedType: col.PropertyType.Name
-                    ));
-                }
-
-                col.Setter(item, safeValue);
-            }
-            
-            yield return item;
-        }
+        return columnMap;
     }
     
     public void Dispose()
