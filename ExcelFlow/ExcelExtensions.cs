@@ -9,7 +9,7 @@ public static class ExcelExtensions
 {
     public static void ToExcel<T>(this IEnumerable<T> data, string filePath, string sheetName) where T : class
     {
-        using FileStream stream = File.Open(filePath, FileMode.Create, FileAccess.Write);
+        using FileStream stream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite);
         
         data.ToExcel(stream, sheetName);
     }
