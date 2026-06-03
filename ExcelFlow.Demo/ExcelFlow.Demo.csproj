@@ -15,7 +15,8 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
 	<PublishAot>true</PublishAot>
-	<EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+	<PublishTrimmed>true</PublishTrimmed>
+	  <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
   </PropertyGroup>
 
 	<ItemGroup>
