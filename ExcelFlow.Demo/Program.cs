@@ -66,6 +66,7 @@ class Program
         // Fluent API Read with Graceful Error Handling
         List<SalesRow> rowsFromFile = await Excel.Read<SalesRow>(filePath)
                                       .FromSheet(sheetName)
+                                      .Validate(sale => sale.Amount > 1000, "Sales moment")
                                       .OnError(err => Console.WriteLine($"[Warning] Row {err.RowNumber} skipped: {err.ExpectedType} expected."))
                                       .ToListAsync();
 

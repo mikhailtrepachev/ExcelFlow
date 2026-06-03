@@ -27,6 +27,8 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
 
     private IEnumerable<ExcelColumnDefinition<T>>? _columnDefinitions;
 
+    private readonly List<(Func<T, bool> Predicate, string ErrorMessage)> _validationRules = new();
+
     /// <summary>
     /// Constructor for ExcelReaderBuilder
     /// </summary>
@@ -72,7 +74,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
 
         IEnumerable<ExcelColumnDefinition<T>> definitions = T.GetDefinitions();
 
-        foreach (T item in context.Worksheet<T>(definitions, _sheetName, _errorHandler))
+        foreach (T item in context.Worksheet<T>(definitions, _sheetName, _errorHandler, _validationRules))
         {
             yield return item;
         }
@@ -93,7 +95,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
 
         IEnumerable<ExcelColumnDefinition<T>> definitions = T.GetDefinitions();
 
-        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(definitions, _sheetName, _errorHandler, cancellationToken);
+        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(definitions, _sheetName, _errorHandler, _validationRules, cancellationToken);
 
         await foreach (T item in asyncStream)
         {
@@ -127,6 +129,22 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
     public ExcelReaderBuilder<T> WithMapping(IEnumerable<ExcelColumnDefinition<T>> definitions)
     {
         _columnDefinitions = definitions;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds validation (without reflection)
+    /// </summary>
+    /// <param name="predicate"></param>
+    /// <param name="errorMessage"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public ExcelReaderBuilder<T> Validate(Func<T, bool> predicate, string errorMessage)
+    {
+        if (predicate is null)
+            throw new ArgumentNullException(nameof(predicate));
+
+        _validationRules.Add((predicate, errorMessage));
         return this;
     }
 }

@@ -93,7 +93,7 @@ internal class ExcelContext : IDisposable
     }
 
     public IEnumerable<T> Worksheet<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
-        string? sheetName = null, Action<ExcelParseError>? onError = null)
+        string? sheetName = null, Action<ExcelParseError>? onError = null, List<(Func<T, bool> Predicate, string ErrorMessage)>? validationRules = null)
         where T : new()
     {
         List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName);
@@ -127,13 +127,36 @@ internal class ExcelContext : IDisposable
                 col.Setter(item, safeValue ?? string.Empty);
             }
 
+            bool isValidRow = true;
+
+            if (validationRules is not null && validationRules.Count > 0)
+            {
+                foreach ((Func<T, bool> Predicate, string ErrorMessage) rule in validationRules)
+                {
+                    if (!rule.Predicate(item))
+                    {
+                        onError?.Invoke(new ExcelParseError(
+                            RowNumber: rowNumber,
+                            ColumnName: "Validation",
+                            RawValue: rule.ErrorMessage,
+                            ExpectedType: "BusinessRule"));
+
+                        isValidRow = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!isValidRow)
+                continue;
+
             yield return item;
         }
     }
     
     public async IAsyncEnumerable<T> WorksheetAsync<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
         string? sheetName = null,
-        Action<ExcelParseError>? onError = null,
+        Action<ExcelParseError>? onError = null, List<(Func<T, bool> Predicate, string ErrorMessage)>? validationRules = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : new()
     {
         List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName);
@@ -174,7 +197,30 @@ internal class ExcelContext : IDisposable
 
                 col.Setter(item, safeValue ?? string.Empty);
             }
-            
+
+            bool isValidRow = true;
+
+            if (validationRules is not null && validationRules.Count > 0)
+            {
+                foreach ((Func<T, bool> Predicate, string ErrorMessage) rule in validationRules)
+                {
+                    if (!rule.Predicate(item))
+                    {
+                        onError?.Invoke(new ExcelParseError(
+                            RowNumber: rowNumber,
+                            ColumnName: "Validation",
+                            RawValue: rule.ErrorMessage,
+                            ExpectedType: "BusinessRule"));
+
+                        isValidRow = false;
+                        break;
+                    }
+                }
+            }
+
+            if (!isValidRow)
+                continue;
+
             yield return item;
         }
     }
