@@ -1,12 +1,14 @@
-﻿using System.Reflection;
+﻿using ExcelDataReader;
+using System.Diagnostics.CodeAnalysis;
+using System.Reflection;
 using System.Runtime.CompilerServices;
-using ExcelDataReader;
 
 namespace ExcelFlow;
 
 /// <summary>
 /// ExcelColumnAttribute
 /// </summary>
+[AttributeUsage(AttributeTargets.Property)]
 public class ExcelColumnAttribute : Attribute
 {
     /// <summary>
@@ -21,10 +23,23 @@ public class ExcelColumnAttribute : Attribute
     public ExcelColumnAttribute(string name) => Name = name;
 }
 
+/// <summary>
+/// Represents a predefined mapping definition provided by a Source Generator or Reflection fallback.
+/// It contains the expected column name and the compiled setter delegate.
+/// </summary>
+public record ExcelColumnDefinition<T>(
+    string ColumnName,
+    [property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type PropertyType,
+    Action<T, object?>? Setter,
+    Func<T, object?>? Getter);
+
+/// <summary>
+/// Represents an active mapping between an actual Excel column index and a model's property setter.
+/// </summary>
 internal record ColumnMapEntry<T>(
     int Index,
     string ColumnName,
-    Type PropertyType,
+    [property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type PropertyType,
     Action<T, object> Setter);
 
 internal record ExportColumnMap<T>(
@@ -77,10 +92,11 @@ internal class ExcelContext : IDisposable
         });
     }
 
-    public IEnumerable<T> Worksheet<T>(string? sheetName = null, Action<ExcelParseError>? onError = null)
+    public IEnumerable<T> Worksheet<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
+        string? sheetName = null, Action<ExcelParseError>? onError = null)
         where T : new()
     {
-        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap<T>(sheetName);
+        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName);
 
         if (columnMap == null)
             yield break;
@@ -115,13 +131,13 @@ internal class ExcelContext : IDisposable
         }
     }
     
-    public async IAsyncEnumerable<T> WorksheetAsync<T>(
+    public async IAsyncEnumerable<T> WorksheetAsync<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
         string? sheetName = null,
         Action<ExcelParseError>? onError = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : new()
     {
-        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap<T>(sheetName);
-        
+        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName);
+
         if (columnMap == null)
             yield break;
         
@@ -131,6 +147,7 @@ internal class ExcelContext : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Yield control back to the thread pool periodically to prevent thread starvation in async web apps
             if (rowNumber % 1000 == 0)
             {
                 await Task.Yield();
@@ -162,10 +179,19 @@ internal class ExcelContext : IDisposable
         }
     }
 
-    private List<ColumnMapEntry<T>>? PrepareColumnMap<T>(string? sheetName)
+    /// <summary>
+    /// Finds the requested worksheet, reads the header row, and matches it against the provided column definitions.
+    /// </summary>
+    /// <param name="columnDefinitions">The expected columns and their setters.</param>
+    /// <param name="sheetName">The target sheet name (optional).</param>
+    /// <returns>A list of active column mappings, or null if the sheet is empty.</returns>
+    /// <exception cref="Exception">Sheet with this sheetName is not found.</exception>
+    private List<ColumnMapEntry<T>>? PrepareColumnMap<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
+        string? sheetName)
     {
         bool sheetFound = false;
 
+        // Advance through result sets (sheets) until we find the requested one
         do
         {
             if (sheetName == null || _reader.Name == sheetName)
@@ -177,8 +203,8 @@ internal class ExcelContext : IDisposable
         
         if (!sheetFound)
             throw new Exception($"Sheet {sheetName} not found");
-        
-        // Read header
+
+        // Read the first row (headers). If false, the sheet is completely empty.
         if (!_reader.Read())
             return null;
         
@@ -194,33 +220,27 @@ internal class ExcelContext : IDisposable
             }
         }
 
-        PropertyInfo[] properties = typeof(T).GetProperties();
         List<ColumnMapEntry<T>> columnMap = new List<ColumnMapEntry<T>>();
 
-        foreach (PropertyInfo property in properties)
+        foreach (ExcelColumnDefinition<T> definition in columnDefinitions)
         {
-            if (!property.CanWrite) 
-                continue;
-            
-            ExcelColumnAttribute? attribute = property.GetCustomAttribute<ExcelColumnAttribute>();
-            string expectedName = attribute?.Name ?? property.Name;
-
-            if (headerMap.TryGetValue(expectedName, out int index))
+            if (definition.Setter != null && headerMap.TryGetValue(definition.ColumnName, out int index))
             {
-                Action<T, object> setter = ExpressionCompiler.CompileSetter<T>(property);
-        
                 columnMap.Add(new ColumnMapEntry<T>(
-                    index, 
-                    expectedName, 
-                    property.PropertyType, 
-                    setter
+                    index,
+                    definition.ColumnName,
+                    definition.PropertyType,
+                    definition.Setter
                 ));
             }
         }
 
         return columnMap;
     }
-    
+
+    /// <summary>
+    /// Disposes the underlying reader and stream resources.
+    /// </summary>
     public void Dispose()
     {
         _reader.Dispose();
