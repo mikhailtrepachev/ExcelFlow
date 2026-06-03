@@ -1,17 +1,22 @@
-﻿using System.Diagnostics;
-using ClosedXML.Excel;
+﻿using System;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Collections.Generic;
 using ExcelFlow;
 
 namespace ExcelFlow.Demo;
 
-public class SalesRow
+[ExcelFlowSerializable]
+public partial class SalesRow
 {
     [ExcelColumn("Manager Name")]
     public string? Manager { get; set; }
-    
+
     [ExcelColumn("Amount")]
     public decimal Amount { get; set; }
-    
+
     [ExcelColumn("Date")]
     public DateTime Date { get; set; }
 }
@@ -20,16 +25,19 @@ class Program
 {
     static async Task Main()
     {
-        string filePath = "demo_benchmark.xlsx";
+        string filePath = "excelflow_aot_demo.xlsx";
         string sheetName = "SalesData";
         int rowCount = 500000;
-        
-        Console.WriteLine("=== EXCELFLOW: DEMONSTRATION AND BENCHMARK ===\n");
+
+        Console.WriteLine("==================================================");
+        Console.WriteLine("EXCELFLOW 1.1.0 : NATIVE AOT");
+        Console.WriteLine("==================================================\n");
 
         // ==========================================
-        // 1. DATA GENERATION
+        // 1. DATA GENERATION (EXPORT)
         // ==========================================
-        Console.WriteLine($"[1/4] 🏭 Generating file with {rowCount:N0} rows...");
+        Console.WriteLine($"[1/3] Generating Excel file with {rowCount:N0} rows...");
+
         IEnumerable<SalesRow> fakeData = Enumerable.Range(1, rowCount).Select(i => new SalesRow
         {
             Manager = $"Manager_{i}",
@@ -38,104 +46,83 @@ class Program
         });
 
         Stopwatch sw = Stopwatch.StartNew();
-        
-        // Using your Fluent API for writing
+
+        // Fluent API Export (Zero Reflection)
         Excel.Write(fakeData)
              .ToSheet(sheetName)
              .ToFile(filePath);
-             
-        Console.WriteLine($"✅ File generated in {sw.ElapsedMilliseconds} ms. Size: {new FileInfo(filePath).Length / 1024 / 1024} MB\n");
+
+        Console.WriteLine($" File generated in {sw.ElapsedMilliseconds} ms.");
+        Console.WriteLine($" File Size: {new FileInfo(filePath).Length / 1024 / 1024} MB\n");
 
         // ==========================================
-        // 2. READING VIA CLOSEDXML (Competitor)
+        // 2. STANDARD READ (IN-MEMORY LIST)
         // ==========================================
-        Console.WriteLine("[2/4] ⏳ Reading via ClosedXML (Warning: consumes high RAM)...");
+        Console.WriteLine("[2/3] Reading entire file into Memory (List<T>)...");
         RunGarbageCollector();
-        long memBeforeClosed = GC.GetTotalMemory(true);
+        long memBeforeList = GC.GetTotalMemory(true);
         sw.Restart();
-        
-        decimal totalClosedXML = 0;
-        using (XLWorkbook workbook = new XLWorkbook(filePath))
-        {
-            IXLWorksheet? sheet = workbook.Worksheet(sheetName);
-            foreach (IXLRow? row in sheet.RowsUsed().Skip(1))
-            {
-                totalClosedXML += row.Cell(2).GetValue<decimal>();
-            }
-        }
-        
-        long timeClosedXML = sw.ElapsedMilliseconds;
-        long memAfterClosed = GC.GetTotalMemory(false);
-        PrintResult("ClosedXML", timeClosedXML, memAfterClosed - memBeforeClosed);
 
-        // ==========================================
-        // 3. READING VIA EXCELFLOW (FILE)
-        // ==========================================
-        Console.WriteLine("\n[3/4] 🚀 Reading file via ExcelFlow (Fluent API)...");
-        RunGarbageCollector();
-        long memBeforeFlowFile = GC.GetTotalMemory(true);
-        sw.Restart();
-        
-        // Demonstrating elegant Fluent API with error handling
+        // Fluent API Read with Graceful Error Handling
         List<SalesRow> rowsFromFile = await Excel.Read<SalesRow>(filePath)
                                       .FromSheet(sheetName)
-                                      .OnError(err => Console.WriteLine($"Error in row {err.RowNumber}: {err.RawValue}"))
+                                      .OnError(err => Console.WriteLine($"[Warning] Row {err.RowNumber} skipped: {err.ExpectedType} expected."))
                                       .ToListAsync();
-        
-        decimal totalFlowFile = rowsFromFile.Sum(x => x.Amount);
-        
-        long timeFlowFile = sw.ElapsedMilliseconds;
-        long memAfterFlowFile = GC.GetTotalMemory(false);
-        PrintResult("ExcelFlow (File)", timeFlowFile, memAfterFlowFile - memBeforeFlowFile);
+
+        long timeList = sw.ElapsedMilliseconds;
+        long memAfterList = GC.GetTotalMemory(false);
+        PrintResult("ExcelFlow (ToList)", timeList, memAfterList - memBeforeList);
 
         // ==========================================
-        // 4. READING VIA EXCELFLOW (ASYNCHRONOUS STREAM)
+        // 3. ASYNC STREAMING (LOW MEMORY FOOTPRINT)
         // ==========================================
-        Console.WriteLine("\n[4/4] 🌊 Streaming asynchronous reading via ExcelFlow...");
+        Console.WriteLine("\n[3/3] Streaming file asynchronously (IAsyncEnumerable)...");
         RunGarbageCollector();
-        long memBeforeFlowStream = GC.GetTotalMemory(true);
+        long memBeforeStream = GC.GetTotalMemory(true);
         sw.Restart();
-        
-        decimal totalFlowStream = 0;
+
+        decimal totalAmount = 0;
         await using var fileStream = File.OpenRead(filePath);
-        
-        // Demonstrating the power of IAsyncEnumerable!
+
         var asyncStream = Excel.Read<SalesRow>(fileStream)
                                .FromSheet(sheetName)
                                .AsAsyncEnumerable();
 
+        // Processing rows one by one without loading the whole file into RAM
         await foreach (var row in asyncStream)
         {
-            totalFlowStream += row.Amount;
+            totalAmount += row.Amount;
         }
-        
-        long timeFlowStream = sw.ElapsedMilliseconds;
-        long memAfterFlowStream = GC.GetTotalMemory(false);
-        PrintResult("ExcelFlow (Async Stream)", timeFlowStream, memAfterFlowStream - memBeforeFlowStream);
+
+        long timeStream = sw.ElapsedMilliseconds;
+        long memAfterStream = GC.GetTotalMemory(false);
+        PrintResult("ExcelFlow (Async Stream)", timeStream, memAfterStream - memBeforeStream);
 
         // ==========================================
         // SUMMARY
         // ==========================================
-        Console.WriteLine("\n🏆 FINAL COMPARISON (ClosedXML vs ExcelFlow Stream):");
-        
-        double speedup = timeFlowStream == 0 ? 0 : (double)timeClosedXML / timeFlowStream;
-        long closedMemoryMb = (memAfterClosed - memBeforeClosed) / 1024 / 1024;
-        long flowMemoryMb = Math.Max(1, (memAfterFlowStream - memBeforeFlowStream) / 1024 / 1024); // Avoid div by zero
-        double memorySavings = closedMemoryMb == 0 ? 0 : (double)closedMemoryMb / flowMemoryMb;
-        
-        Console.WriteLine($"⚡ Speedup: {speedup:F1}x faster");
-        Console.WriteLine($"💾 Memory savings: {memorySavings:F1}x less RAM ({closedMemoryMb} MB vs {flowMemoryMb} MB)!");
-        
-        // Clean up
+        Console.WriteLine("\n AOT PERFORMANCE SUMMARY:");
+
+        long listMemoryMb = Math.Max(1, (memAfterList - memBeforeList) / 1024 / 1024);
+        long streamMemoryMb = Math.Max(0, (memAfterStream - memBeforeStream) / 1024 / 1024);
+
+        Console.WriteLine($" List Parsing Time: {timeList} ms");
+        Console.WriteLine($" Stream Parsing Time: {timeStream} ms");
+        Console.WriteLine($" RAM Used (List): {listMemoryMb} MB (Objects stored in memory)");
+        Console.WriteLine($" RAM Used (Stream): {streamMemoryMb} MB (True streaming power!)");
+
         if (File.Exists(filePath)) File.Delete(filePath);
+
+        Console.WriteLine("\nPress any key to exit...");
+        Console.ReadKey();
     }
 
     static void PrintResult(string name, long timeMs, long memoryBytes)
     {
         double memoryMb = Math.Max(0, memoryBytes / (1024.0 * 1024.0));
-        Console.WriteLine($"   > Library: {name}");
+        Console.WriteLine($"   > Method: {name}");
         Console.WriteLine($"   > Time: {timeMs} ms");
-        Console.WriteLine($"   > Memory (RAM): {memoryMb:F2} MB");
+        Console.WriteLine($"   > Memory Allocated: {memoryMb:F2} MB");
     }
 
     static void RunGarbageCollector()

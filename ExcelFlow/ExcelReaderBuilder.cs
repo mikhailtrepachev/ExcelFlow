@@ -6,7 +6,7 @@ namespace ExcelFlow;
 /// ExcelReaderBuilder
 /// </summary>
 /// <typeparam name="T">Table scheme</typeparam>
-public class ExcelReaderBuilder<T> where T : class, new()
+public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, new()
 {
     /// <summary>
     /// File path
@@ -24,6 +24,8 @@ public class ExcelReaderBuilder<T> where T : class, new()
     private string _sheetName = "Sheet1";
     
     private Action<ExcelParseError>? _errorHandler;
+
+    private IEnumerable<ExcelColumnDefinition<T>>? _columnDefinitions;
 
     /// <summary>
     /// Constructor for ExcelReaderBuilder
@@ -68,7 +70,9 @@ public class ExcelReaderBuilder<T> where T : class, new()
             ? new ExcelContext(_filePath)
             : new ExcelContext(_stream!);
 
-        foreach (T item in context.Worksheet<T>(_sheetName))
+        IEnumerable<ExcelColumnDefinition<T>> definitions = T.GetDefinitions();
+
+        foreach (T item in context.Worksheet<T>(definitions, _sheetName, _errorHandler))
         {
             yield return item;
         }
@@ -87,7 +91,9 @@ public class ExcelReaderBuilder<T> where T : class, new()
             ? new ExcelContext(_filePath) 
             : new ExcelContext(_stream!);
 
-        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(_sheetName, _errorHandler, cancellationToken);
+        IEnumerable<ExcelColumnDefinition<T>> definitions = T.GetDefinitions();
+
+        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(definitions, _sheetName, _errorHandler, cancellationToken);
 
         await foreach (T item in asyncStream)
         {
@@ -116,5 +122,11 @@ public class ExcelReaderBuilder<T> where T : class, new()
         }
         
         return list;
+    }
+
+    public ExcelReaderBuilder<T> WithMapping(IEnumerable<ExcelColumnDefinition<T>> definitions)
+    {
+        _columnDefinitions = definitions;
+        return this;
     }
 }
