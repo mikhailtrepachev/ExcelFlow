@@ -6,7 +6,7 @@ namespace ExcelFlow;
 /// ExcelReaderBuilder
 /// </summary>
 /// <typeparam name="T">Table scheme</typeparam>
-public class ExcelReaderBuilder<T> where T : class, new()
+public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, new()
 {
     /// <summary>
     /// File path
@@ -21,9 +21,14 @@ public class ExcelReaderBuilder<T> where T : class, new()
     /// <summary>
     /// Sheet name - default is "Sheet1"
     /// </summary>
-    private string _sheetName = "Sheet1";
+    private string? _sheetName = null;
     
     private Action<ExcelParseError>? _errorHandler;
+    private int _skipRows = 0;
+
+    private IEnumerable<ExcelColumnDefinition<T>>? _columnDefinitions;
+
+    private readonly List<(Func<T, bool> Predicate, string ErrorMessage)> _validationRules = new();
 
     /// <summary>
     /// Constructor for ExcelReaderBuilder
@@ -41,9 +46,15 @@ public class ExcelReaderBuilder<T> where T : class, new()
     /// </summary>
     /// <param name="sheetName">Sheet name</param>
     /// <returns>ExcelReaderBuilder</returns>
-    public ExcelReaderBuilder<T> FromSheet(string sheetName)
+    public ExcelReaderBuilder<T> FromSheet(string? sheetName)
     {
         _sheetName = sheetName;
+        return this;
+    }
+
+    public ExcelReaderBuilder<T> SkipRows(int count)
+    {
+        _skipRows = count;
         return this;
     }
 
@@ -68,7 +79,9 @@ public class ExcelReaderBuilder<T> where T : class, new()
             ? new ExcelContext(_filePath)
             : new ExcelContext(_stream!);
 
-        foreach (T item in context.Worksheet<T>(_sheetName))
+        IEnumerable<ExcelColumnDefinition<T>> definitions = _columnDefinitions ?? T.GetDefinitions();
+
+        foreach (T item in context.Worksheet<T>(definitions, _sheetName, _skipRows, _errorHandler, _validationRules))
         {
             yield return item;
         }
@@ -87,7 +100,9 @@ public class ExcelReaderBuilder<T> where T : class, new()
             ? new ExcelContext(_filePath) 
             : new ExcelContext(_stream!);
 
-        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(_sheetName, _errorHandler, cancellationToken);
+        IEnumerable<ExcelColumnDefinition<T>> definitions = _columnDefinitions ?? T.GetDefinitions();
+
+        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(definitions, _sheetName, _skipRows, _errorHandler, _validationRules, cancellationToken);
 
         await foreach (T item in asyncStream)
         {
@@ -116,5 +131,27 @@ public class ExcelReaderBuilder<T> where T : class, new()
         }
         
         return list;
+    }
+
+    public ExcelReaderBuilder<T> WithMapping(IEnumerable<ExcelColumnDefinition<T>> definitions)
+    {
+        _columnDefinitions = definitions;
+        return this;
+    }
+
+    /// <summary>
+    /// Adds validation (without reflection)
+    /// </summary>
+    /// <param name="predicate"></param>
+    /// <param name="errorMessage"></param>
+    /// <returns></returns>
+    /// <exception cref="ArgumentNullException"></exception>
+    public ExcelReaderBuilder<T> Validate(Func<T, bool> predicate, string errorMessage)
+    {
+        if (predicate is null)
+            throw new ArgumentNullException(nameof(predicate));
+
+        _validationRules.Add((predicate, errorMessage));
+        return this;
     }
 }

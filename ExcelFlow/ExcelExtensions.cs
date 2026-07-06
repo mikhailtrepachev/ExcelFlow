@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using DocumentFormat.OpenXml;
 using DocumentFormat.OpenXml.Packaging;
@@ -7,34 +8,25 @@ namespace ExcelFlow;
 
 internal static class ExcelExtensions
 {
-    public static void ToExcel<T>(this IEnumerable<T> data, string filePath, string sheetName) where T : class
+    public static void ToExcel<T>(this IEnumerable<T> data, string filePath, string sheetName) where T : class, 
+        IExcelFlowSerializable<T>, new()
     {
         using FileStream stream = File.Open(filePath, FileMode.Create, FileAccess.ReadWrite);
         
         data.ToExcel(stream, sheetName);
     }
 
-    public static void ToExcel<T>(this IEnumerable<T> data, Stream stream, string sheetName) where T : class
+    public static void ToExcel<T>(this IEnumerable<T> data, Stream stream, string sheetName) where T : class, 
+        IExcelFlowSerializable<T>, new()
     {
         if (data == null) throw new ArgumentNullException(nameof(data));
         if (stream == null) throw new ArgumentNullException(nameof(stream));
         if (string.IsNullOrEmpty(sheetName)) sheetName = "Sheet1";
 
-        PropertyInfo[] properties = typeof(T).GetProperties();
-        List<ExportColumnMap<T>> exportMap = new List<ExportColumnMap<T>>();
-
-        foreach (PropertyInfo prop in properties)
-        {
-            if (!prop.CanRead) 
-                continue;
-            
-            ExcelColumnAttribute? attr = prop.GetCustomAttribute<ExcelColumnAttribute>();
-            string expectedName = attr?.Name ?? prop.Name;
-            
-            Func<T, object> getter = ExpressionCompiler.CompileGetter<T>(prop);
-
-            exportMap.Add(new ExportColumnMap<T>(expectedName, prop.PropertyType, getter));
-        }
+        List<ExcelColumnDefinition<T>> exportMap = T.GetDefinitions()
+                    .Where(col => col.Getter != null)
+                    .ToList();
+       
 
         using SpreadsheetDocument document = SpreadsheetDocument.Create(stream, SpreadsheetDocumentType.Workbook);
         WorkbookPart workbookPart = document.AddWorkbookPart();
@@ -48,7 +40,7 @@ internal static class ExcelExtensions
             writer.WriteStartElement(new SheetData());
 
             writer.WriteStartElement(new Row());
-            foreach (ExportColumnMap<T> col in exportMap)
+            foreach (ExcelColumnDefinition<T> col in exportMap)
             {
                 writer.WriteElement(new Cell
                 {
@@ -61,9 +53,10 @@ internal static class ExcelExtensions
             foreach (T item in data)
             {
                 writer.WriteStartElement(new Row());
-                foreach (ExportColumnMap<T> col in exportMap)
+                foreach (ExcelColumnDefinition<T> col in exportMap)
                 {
-                    object? value = col.Getter(item);
+                    object? value = col.Getter!(item);
+                    
                     Cell cell = new Cell();
 
                     if (value is null)
@@ -77,8 +70,8 @@ internal static class ExcelExtensions
                     }
                     else if (value is DateTime dateTime)
                     {
-                        cell.CellValue = new CellValue(dateTime.ToString("yyyy-MM-ddTHH:mm:ss"));
-                        cell.DataType = CellValues.String; 
+                        cell.CellValue = new CellValue(dateTime.ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        cell.DataType = CellValues.Number; 
                     }
                     else if (value is bool boolean)
                     {
@@ -112,14 +105,15 @@ internal static class ExcelExtensions
         workbookPart.Workbook.Save();
     }
 
-    public static (object?, bool) SafeConvert(object? value, Type targetType)
+    public static (object?, bool) SafeConvert(object? value,
+        [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type targetType)
     {
         if (value == null || value == DBNull.Value || string.IsNullOrWhiteSpace(value.ToString()))
         {
             if (Nullable.GetUnderlyingType(targetType) != null || !targetType.IsValueType)
                 return (null, true);
             
-            return (Activator.CreateInstance(targetType), true);
+            return (null, false);
         }
         
         Type underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
@@ -153,9 +147,20 @@ internal static class ExcelExtensions
             {
                 if (value is string strValue)
                 {
-                    strValue = strValue.Replace(',', '.');
-                    return (Convert.ChangeType(strValue, underlyingType,
-                        System.Globalization.CultureInfo.InvariantCulture), true);
+                    try
+                    {
+                        return (Convert.ChangeType(strValue, underlyingType,
+                            System.Globalization.CultureInfo.InvariantCulture), true);
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            return (Convert.ChangeType(strValue, underlyingType,
+                                System.Globalization.CultureInfo.CurrentCulture), true);
+                        }
+                        catch { }
+                    }
                 }
             }
 
@@ -166,7 +171,7 @@ internal static class ExcelExtensions
             if (Nullable.GetUnderlyingType(targetType) != null || !targetType.IsValueType)
                 return (null, false);
 
-            return (Activator.CreateInstance(targetType), false);
+            return (null, false);
         }
     }
 }

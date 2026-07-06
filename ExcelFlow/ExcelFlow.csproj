@@ -8,7 +8,7 @@
         <LangVersion>latest</LangVersion>
 
         <PackageId>ExcelFlow</PackageId>
-        <Version>1.0.3</Version>
+        <Version>1.1.0</Version>
         <Authors>Mikhail Trepachev</Authors>
         <Company>Mikhail Trepachev</Company>
         <Description>Ultra-fast, memory-efficient, and strictly typed Excel (.xlsx) reader and writer for modern .NET. Uses forward-only streaming and Expression Trees to process hundreds of thousands of rows with minimal RAM.</Description>
@@ -19,13 +19,14 @@
 
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
+		<IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="DocumentFormat.OpenXml" Version="3.0.2" />
         <PackageReference Include="ExcelDataReader" Version="3.7.0" />
 
-        <PackageReference Include="System.IO.Packaging" Version="8.0.1" />
+        
     </ItemGroup>
 
     <ItemGroup>

@@ -1,6 +1,6 @@
 namespace ExcelFlow;
 
-public class ExcelWriterBuilder<T> where T : class
+public class ExcelWriterBuilder<T> where T : class, IExcelFlowSerializable<T>, new()
 {
     private readonly IEnumerable<T> _data;
     
