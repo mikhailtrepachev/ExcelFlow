@@ -1,0 +1,54 @@
+name: .NET CI & AOT Smoke Test
+
+on:
+  push:
+    branches: [ "main", "v1.1.0" ]
+  pull_request:
+    branches: [ "main", "v1.1.0" ]
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: |
+          8.0.x
+          9.0.x
+          10.0.x
+          
+    - name: Restore dependencies
+      run: dotnet restore ExcelFlow.sln
+      
+    - name: Build
+      run: dotnet build ExcelFlow.sln --no-restore -c Release
+      
+    - name: Test
+      run: dotnet test ExcelFlow.sln --no-build -c Release --verbosity normal
+
+  aot-smoke-test:
+    name: Native AOT Smoke Test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+        
+    - name: Install Native AOT prerequisites
+      run: sudo apt-get update && sudo apt-get install -y clang zlib1g-dev
+      
+    - name: Publish AOT
+      # Publishing Demo project which has <PublishAot>true</PublishAot>
+      run: dotnet publish ExcelFlow.Demo/ExcelFlow.Demo.csproj -c Release -r linux-x64
+      
+    - name: Run AOT Binary (Smoke Test)
+      env:
+        CI: true
+      run: ./ExcelFlow.Demo/bin/Release/net10.0/linux-x64/publish/ExcelFlow.Demo

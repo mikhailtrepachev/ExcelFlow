@@ -115,7 +115,7 @@ class Program
         if (File.Exists(filePath)) File.Delete(filePath);
 
         Console.WriteLine("\nPress any key to exit...");
-        Console.ReadKey();
+        if (Environment.GetEnvironmentVariable("CI") != "true") { Console.ReadKey(); }
     }
 
     static void PrintResult(string name, long timeMs, long memoryBytes)
