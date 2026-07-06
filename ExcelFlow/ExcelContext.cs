@@ -1,6 +1,5 @@
 ﻿using ExcelDataReader;
 using System.Diagnostics.CodeAnalysis;
-using System.Reflection;
 using System.Runtime.CompilerServices;
 
 namespace ExcelFlow;
@@ -41,11 +40,6 @@ internal record ColumnMapEntry<T>(
     string ColumnName,
     [property: DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicParameterlessConstructor)] Type PropertyType,
     Action<T, object> Setter);
-
-internal record ExportColumnMap<T>(
-    string ColumnName,
-    Type PropertyType,
-    Func<T, object> Getter);
 
 internal class ExcelContext : IDisposable
 {
@@ -110,7 +104,7 @@ internal class ExcelContext : IDisposable
 
             foreach (ColumnMapEntry<T> col in columnMap)
             {
-                object? rawValue = _reader.GetValue(col.Index);
+                object rawValue = _reader.GetValue(col.Index);
                 (object? safeValue, bool isSuccess) = ExcelExtensions.SafeConvert(rawValue, col.PropertyType);
 
                 if (!isSuccess)
@@ -118,7 +112,7 @@ internal class ExcelContext : IDisposable
                     onError?.Invoke(new ExcelParseError(
                         RowNumber: rowNumber,
                         ColumnName: col.ColumnName,
-                        RawValue: rawValue?.ToString() ?? string.Empty,
+                        RawValue: rawValue.ToString() ?? string.Empty,
                         ExpectedType: col.PropertyType.Name
                     ));
                     continue;
@@ -181,7 +175,7 @@ internal class ExcelContext : IDisposable
             
             foreach (ColumnMapEntry<T> col in columnMap)
             {
-                object? rawValue = _reader.GetValue(col.Index);
+                object rawValue = _reader.GetValue(col.Index);
                 (object? safeValue, bool isSuccess) = ExcelExtensions.SafeConvert(rawValue, col.PropertyType);
 
                 if (!isSuccess)
@@ -189,7 +183,7 @@ internal class ExcelContext : IDisposable
                     onError?.Invoke(new ExcelParseError(
                         RowNumber: rowNumber,
                         ColumnName: col.ColumnName, 
-                        RawValue: rawValue?.ToString() ?? string.Empty,
+                        RawValue: rawValue.ToString() ?? string.Empty,
                         ExpectedType: col.PropertyType.Name
                     ));
                     continue;
@@ -226,12 +220,14 @@ internal class ExcelContext : IDisposable
     }
 
     /// <summary>
-    /// Finds the requested worksheet, reads the header row, and matches it against the provided column definitions.
+    /// Prepares the column map for the given sheet and column definitions.
     /// </summary>
-    /// <param name="columnDefinitions">The expected columns and their setters.</param>
-    /// <param name="sheetName">The target sheet name (optional).</param>
-    /// <returns>A list of active column mappings, or null if the sheet is empty.</returns>
-    /// <exception cref="Exception">Sheet with this sheetName is not found.</exception>
+    /// <param name="columnDefinitions"></param>
+    /// <param name="sheetName"></param>
+    /// <param name="skipRows"></param>
+    /// <typeparam name="T"></typeparam>
+    /// <returns></returns>
+    /// <exception cref="InvalidOperationException"></exception>
     private List<ColumnMapEntry<T>>? PrepareColumnMap<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
         string? sheetName, int skipRows)
     {
@@ -264,7 +260,7 @@ internal class ExcelContext : IDisposable
 
         for (int i = 0; i < _reader.FieldCount; i++)
         {
-            string? colName = _reader.GetValue(i)?.ToString();
+            string? colName = _reader.GetValue(i).ToString();
 
             if (!string.IsNullOrEmpty(colName))
             {

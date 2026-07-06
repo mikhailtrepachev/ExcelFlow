@@ -1,10 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-namespace ExcelFlow;
+﻿namespace ExcelFlow;
 
 /// <summary>
 /// Defines a contract for models that provide compile-time generated Excel column definitions.
