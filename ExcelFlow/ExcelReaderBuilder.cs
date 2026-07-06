@@ -24,6 +24,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
     private string? _sheetName = null;
     
     private Action<ExcelParseError>? _errorHandler;
+    private int _skipRows = 0;
 
     private IEnumerable<ExcelColumnDefinition<T>>? _columnDefinitions;
 
@@ -51,6 +52,12 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
         return this;
     }
 
+    public ExcelReaderBuilder<T> SkipRows(int count)
+    {
+        _skipRows = count;
+        return this;
+    }
+
     /// <summary>
     /// Error handler
     /// </summary>
@@ -74,7 +81,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
 
         IEnumerable<ExcelColumnDefinition<T>> definitions = _columnDefinitions ?? T.GetDefinitions();
 
-        foreach (T item in context.Worksheet<T>(definitions, _sheetName, _errorHandler, _validationRules))
+        foreach (T item in context.Worksheet<T>(definitions, _sheetName, _skipRows, _errorHandler, _validationRules))
         {
             yield return item;
         }
@@ -95,7 +102,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
 
         IEnumerable<ExcelColumnDefinition<T>> definitions = _columnDefinitions ?? T.GetDefinitions();
 
-        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(definitions, _sheetName, _errorHandler, _validationRules, cancellationToken);
+        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(definitions, _sheetName, _skipRows, _errorHandler, _validationRules, cancellationToken);
 
         await foreach (T item in asyncStream)
         {

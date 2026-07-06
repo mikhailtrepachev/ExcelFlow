@@ -93,10 +93,10 @@ internal class ExcelContext : IDisposable
     }
 
     public IEnumerable<T> Worksheet<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
-        string? sheetName = null, Action<ExcelParseError>? onError = null, List<(Func<T, bool> Predicate, string ErrorMessage)>? validationRules = null)
+        string? sheetName = null, int skipRows = 0, Action<ExcelParseError>? onError = null, List<(Func<T, bool> Predicate, string ErrorMessage)>? validationRules = null)
         where T : new()
     {
-        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName);
+        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName, skipRows);
 
         if (columnMap == null)
             yield break;
@@ -156,10 +156,10 @@ internal class ExcelContext : IDisposable
     
     public async IAsyncEnumerable<T> WorksheetAsync<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
         string? sheetName = null,
-        Action<ExcelParseError>? onError = null, List<(Func<T, bool> Predicate, string ErrorMessage)>? validationRules = null,
+        int skipRows = 0, Action<ExcelParseError>? onError = null, List<(Func<T, bool> Predicate, string ErrorMessage)>? validationRules = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : new()
     {
-        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName);
+        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName, skipRows);
 
         if (columnMap == null)
             yield break;
@@ -233,7 +233,7 @@ internal class ExcelContext : IDisposable
     /// <returns>A list of active column mappings, or null if the sheet is empty.</returns>
     /// <exception cref="Exception">Sheet with this sheetName is not found.</exception>
     private List<ColumnMapEntry<T>>? PrepareColumnMap<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
-        string? sheetName)
+        string? sheetName, int skipRows)
     {
         bool sheetFound = false;
 
@@ -249,6 +249,12 @@ internal class ExcelContext : IDisposable
         
         if (!sheetFound)
             throw new InvalidOperationException($"Sheet {sheetName ?? "default"} not found");
+
+        for (int i = 0; i < skipRows; i++)
+        {
+            if (!_reader.Read())
+                return null;
+        }
 
         // Read the first row (headers). If false, the sheet is completely empty.
         if (!_reader.Read())
