@@ -8,7 +8,7 @@ Traditional Excel libraries load the entire document into memory to build a DOM 
 
 **ExcelFlow solves this by using:**
 1. **Forward-Only Streaming:** It reads and writes data row-by-row. Memory consumption stays completely flat (around ~50 MB) regardless of file size.
-2. **Expression Trees:** No slow Reflection in loops. Mapping is compiled into raw machine code at runtime, allowing you to process over **160,000 rows per second**.
+2. **Source Generators:** No slow Reflection in loops. Mapping is compiled into raw machine code at runtime, allowing you to process over **160,000 rows per second**.
 3. **Modern Fluent API & Async: Designed for modern .NET 8+. Fully supports IAsyncEnumerable for non-blocking asynchronous streaming directly from HTTP requests or file streams.**
 
 ## 📦 Installation

@@ -124,7 +124,7 @@ internal class ExcelContext : IDisposable
                     continue;
                 }
 
-                col.Setter(item, safeValue ?? string.Empty);
+                col.Setter(item, safeValue!);
             }
 
             bool isValidRow = true;
@@ -195,7 +195,7 @@ internal class ExcelContext : IDisposable
                     continue;
                 }
 
-                col.Setter(item, safeValue ?? string.Empty);
+                col.Setter(item, safeValue!);
             }
 
             bool isValidRow = true;
@@ -248,7 +248,7 @@ internal class ExcelContext : IDisposable
         } while (_reader.NextResult());
         
         if (!sheetFound)
-            throw new Exception($"Sheet {sheetName} not found");
+            throw new InvalidOperationException($"Sheet {sheetName ?? "default"} not found");
 
         // Read the first row (headers). If false, the sheet is completely empty.
         if (!_reader.Read())

@@ -70,8 +70,8 @@ internal static class ExcelExtensions
                     }
                     else if (value is DateTime dateTime)
                     {
-                        cell.CellValue = new CellValue(dateTime.ToString("yyyy-MM-ddTHH:mm:ss"));
-                        cell.DataType = CellValues.String; 
+                        cell.CellValue = new CellValue(dateTime.ToOADate().ToString(System.Globalization.CultureInfo.InvariantCulture));
+                        cell.DataType = CellValues.Number; 
                     }
                     else if (value is bool boolean)
                     {
@@ -113,7 +113,7 @@ internal static class ExcelExtensions
             if (Nullable.GetUnderlyingType(targetType) != null || !targetType.IsValueType)
                 return (null, true);
             
-            return (Activator.CreateInstance(targetType), true);
+            return (null, false);
         }
         
         Type underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
@@ -147,9 +147,20 @@ internal static class ExcelExtensions
             {
                 if (value is string strValue)
                 {
-                    strValue = strValue.Replace(',', '.');
-                    return (Convert.ChangeType(strValue, underlyingType,
-                        System.Globalization.CultureInfo.InvariantCulture), true);
+                    try
+                    {
+                        return (Convert.ChangeType(strValue, underlyingType,
+                            System.Globalization.CultureInfo.InvariantCulture), true);
+                    }
+                    catch
+                    {
+                        try
+                        {
+                            return (Convert.ChangeType(strValue, underlyingType,
+                                System.Globalization.CultureInfo.CurrentCulture), true);
+                        }
+                        catch { }
+                    }
                 }
             }
 
@@ -160,7 +171,7 @@ internal static class ExcelExtensions
             if (Nullable.GetUnderlyingType(targetType) != null || !targetType.IsValueType)
                 return (null, false);
 
-            return (Activator.CreateInstance(targetType), false);
+            return (null, false);
         }
     }
 }

@@ -25,7 +25,7 @@ public class ValidationFluentTests
     public void Builder_ValidateMethod_AppendsRuleSuccessfully()
     {
         // Act - we use Excel.Read to invoke the internal builder properly
-        var builder = Excel.Read<DummyRow>(new MemoryStream());
+        ExcelReaderBuilder<DummyRow> builder = Excel.Read<DummyRow>(new MemoryStream());
         builder.Validate(x => x.Amount > 0, "Amount must be greater than zero");
 
         // Assert

@@ -21,7 +21,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
     /// <summary>
     /// Sheet name - default is "Sheet1"
     /// </summary>
-    private string _sheetName = "Sheet1";
+    private string? _sheetName = null;
     
     private Action<ExcelParseError>? _errorHandler;
 
@@ -45,7 +45,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
     /// </summary>
     /// <param name="sheetName">Sheet name</param>
     /// <returns>ExcelReaderBuilder</returns>
-    public ExcelReaderBuilder<T> FromSheet(string sheetName)
+    public ExcelReaderBuilder<T> FromSheet(string? sheetName)
     {
         _sheetName = sheetName;
         return this;
@@ -72,7 +72,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
             ? new ExcelContext(_filePath)
             : new ExcelContext(_stream!);
 
-        IEnumerable<ExcelColumnDefinition<T>> definitions = T.GetDefinitions();
+        IEnumerable<ExcelColumnDefinition<T>> definitions = _columnDefinitions ?? T.GetDefinitions();
 
         foreach (T item in context.Worksheet<T>(definitions, _sheetName, _errorHandler, _validationRules))
         {
@@ -93,7 +93,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
             ? new ExcelContext(_filePath) 
             : new ExcelContext(_stream!);
 
-        IEnumerable<ExcelColumnDefinition<T>> definitions = T.GetDefinitions();
+        IEnumerable<ExcelColumnDefinition<T>> definitions = _columnDefinitions ?? T.GetDefinitions();
 
         IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(definitions, _sheetName, _errorHandler, _validationRules, cancellationToken);
 

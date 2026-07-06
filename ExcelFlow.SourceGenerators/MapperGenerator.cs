@@ -52,7 +52,7 @@ public class MapperGenerator : IIncrementalGenerator
             sb.AppendLine("        {");
 
             var properties = classSymbol.GetMembers().OfType<IPropertySymbol>()
-                .Where(p => p.DeclaredAccessibility == Accessibility.Public);
+                .Where(p => p.DeclaredAccessibility == Accessibility.Public && !p.IsStatic);
 
             foreach (var prop in properties)
             {
@@ -70,7 +70,7 @@ public class MapperGenerator : IIncrementalGenerator
                     ? prop.Type.WithNullableAnnotation(NullableAnnotation.NotAnnotated).ToDisplayString()
                     : propType;
 
-                string setterStr = prop.SetMethod is not null ? $"(item, val) => item.{propName} = ({propType})val!" : "null";
+                string setterStr = $"(item, val) => item.{propName} = val == null ? default! : ({propType})val";
                 string getterStr = prop.GetMethod is not null ? $"(item) => item.{propName}" : "null";
 
                 sb.AppendLine($"            yield return new global::ExcelFlow.ExcelColumnDefinition<{className}>(");
