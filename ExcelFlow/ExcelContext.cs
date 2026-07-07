@@ -11,15 +11,30 @@ namespace ExcelFlow;
 public class ExcelColumnAttribute : Attribute
 {
     /// <summary>
-    /// Name
+    /// Expected column name
     /// </summary>
-    public string Name { get; }
+    public string? Name { get; }
+
+    /// <summary>
+    /// Explicit column index (0-based). If set, ignores the Name matching.
+    /// </summary>
+    public int Index { get; set; } = -1;
+
+    /// <summary>
+    /// If true, parser will throw an exception if the column is missing in the file.
+    /// </summary>
+    public bool IsRequired { get; set; }
     
     /// <summary>
-    /// Constructor 
+    /// Constructor with name
     /// </summary>
     /// <param name="name">Name</param>
     public ExcelColumnAttribute(string name) => Name = name;
+
+    /// <summary>
+    /// Parameterless constructor for Index-based mapping
+    /// </summary>
+    public ExcelColumnAttribute() => Name = null;
 }
 
 /// <summary>
@@ -86,13 +101,13 @@ internal class ExcelContext : IDisposable
         });
     }
 
-    public IEnumerable<T> Worksheet<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
+    public IEnumerable<T> Worksheet<T>(
         string? sheetName = null, int skipRows = 0, Action<ExcelParseError>? onError = null, List<(Func<T, bool> Predicate, string ErrorMessage)>? validationRules = null)
-        where T : new()
+        where T : class, IExcelFlowSerializable<T>, new()
     {
-        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName, skipRows);
+        int[]? indexMap = PrepareIndexMap<T>(sheetName, skipRows);
 
-        if (columnMap == null)
+        if (indexMap == null)
             yield break;
 
         int rowNumber = 1;
@@ -100,26 +115,7 @@ internal class ExcelContext : IDisposable
         while (_reader.Read())
         {
             rowNumber++;
-            T item = new T();
-
-            foreach (ColumnMapEntry<T> col in columnMap)
-            {
-                object rawValue = _reader.GetValue(col.Index);
-                (object? safeValue, bool isSuccess) = ExcelExtensions.SafeConvert(rawValue, col.PropertyType);
-
-                if (!isSuccess)
-                {
-                    onError?.Invoke(new ExcelParseError(
-                        RowNumber: rowNumber,
-                        ColumnName: col.ColumnName,
-                        RawValue: rawValue.ToString() ?? string.Empty,
-                        ExpectedType: col.PropertyType.Name
-                    ));
-                    continue;
-                }
-
-                col.Setter(item, safeValue!);
-            }
+            T.ParseRow(_reader, indexMap, out T item, onError, rowNumber);
 
             bool isValidRow = true;
 
@@ -148,14 +144,14 @@ internal class ExcelContext : IDisposable
         }
     }
     
-    public async IAsyncEnumerable<T> WorksheetAsync<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
+    public async IAsyncEnumerable<T> WorksheetAsync<T>(
         string? sheetName = null,
         int skipRows = 0, Action<ExcelParseError>? onError = null, List<(Func<T, bool> Predicate, string ErrorMessage)>? validationRules = null,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : new()
+        [EnumeratorCancellation] CancellationToken cancellationToken = default) where T : class, IExcelFlowSerializable<T>, new()
     {
-        List<ColumnMapEntry<T>>? columnMap = PrepareColumnMap(columnDefinitions, sheetName, skipRows);
+        int[]? indexMap = PrepareIndexMap<T>(sheetName, skipRows);
 
-        if (columnMap == null)
+        if (indexMap == null)
             yield break;
         
         int rowNumber = 1;
@@ -171,26 +167,7 @@ internal class ExcelContext : IDisposable
             }
             
             rowNumber++;
-            T item = new T();
-            
-            foreach (ColumnMapEntry<T> col in columnMap)
-            {
-                object rawValue = _reader.GetValue(col.Index);
-                (object? safeValue, bool isSuccess) = ExcelExtensions.SafeConvert(rawValue, col.PropertyType);
-
-                if (!isSuccess)
-                {
-                    onError?.Invoke(new ExcelParseError(
-                        RowNumber: rowNumber,
-                        ColumnName: col.ColumnName, 
-                        RawValue: rawValue.ToString() ?? string.Empty,
-                        ExpectedType: col.PropertyType.Name
-                    ));
-                    continue;
-                }
-
-                col.Setter(item, safeValue!);
-            }
+            T.ParseRow(_reader, indexMap, out T item, onError, rowNumber);
 
             bool isValidRow = true;
 
@@ -220,16 +197,15 @@ internal class ExcelContext : IDisposable
     }
 
     /// <summary>
-    /// Prepares the column map for the given sheet and column definitions.
+    /// Prepares the column map for the given sheet.
     /// </summary>
-    /// <param name="columnDefinitions"></param>
     /// <param name="sheetName"></param>
     /// <param name="skipRows"></param>
     /// <typeparam name="T"></typeparam>
     /// <returns></returns>
     /// <exception cref="InvalidOperationException"></exception>
-    private List<ColumnMapEntry<T>>? PrepareColumnMap<T>(IEnumerable<ExcelColumnDefinition<T>> columnDefinitions,
-        string? sheetName, int skipRows)
+    private int[]? PrepareIndexMap<T>(
+        string? sheetName, int skipRows) where T : class, IExcelFlowSerializable<T>, new()
     {
         bool sheetFound = false;
 
@@ -268,22 +244,7 @@ internal class ExcelContext : IDisposable
             }
         }
 
-        List<ColumnMapEntry<T>> columnMap = new List<ColumnMapEntry<T>>();
-
-        foreach (ExcelColumnDefinition<T> definition in columnDefinitions)
-        {
-            if (definition.Setter != null && headerMap.TryGetValue(definition.ColumnName, out int index))
-            {
-                columnMap.Add(new ColumnMapEntry<T>(
-                    index,
-                    definition.ColumnName,
-                    definition.PropertyType,
-                    definition.Setter
-                ));
-            }
-        }
-
-        return columnMap;
+        return T.InitializeIndexMap(headerMap);
     }
 
     /// <summary>

@@ -2,23 +2,23 @@ using ClosedXML.Excel;
 
 namespace ExcelFlow.Tests;
 
-public class ExcelFlowComprehensiveTests
+public partial class ExcelFlowComprehensiveTests
 {
     // A fully compliant test model simulating an AOT-ready user class
-    public class ProductRecord : IExcelFlowSerializable<ProductRecord>
+    [ExcelFlowSerializable]
+    public partial class ProductRecord
     {
+        [ExcelColumn("ID")]
         public int Id { get; set; }
+        
+        [ExcelColumn("Product Name")]
         public string? Name { get; set; }
+        
+        [ExcelColumn("Price")]
         public decimal Price { get; set; }
+        
+        [ExcelColumn("Added")]
         public DateTime AddedDate { get; set; }
-
-        public static IEnumerable<ExcelColumnDefinition<ProductRecord>> GetDefinitions()
-        {
-            yield return new ExcelColumnDefinition<ProductRecord>("ID", typeof(int), (item, val) => item.Id = val == null ? default! : (int)val, item => item.Id);
-            yield return new ExcelColumnDefinition<ProductRecord>("Product Name", typeof(string), (item, val) => item.Name = (string?)val, item => item.Name);
-            yield return new ExcelColumnDefinition<ProductRecord>("Price", typeof(decimal), (item, val) => item.Price = val == null ? default! : (decimal)val, item => item.Price);
-            yield return new ExcelColumnDefinition<ProductRecord>("Added", typeof(DateTime), (item, val) => item.AddedDate = val == null ? default! : (DateTime)val, item => item.AddedDate);
-        }
     }
 
     private Stream GenerateTestExcelStream(bool includeTitleRow = false)
@@ -109,7 +109,7 @@ public class ExcelFlowComprehensiveTests
         // Assert
         Assert.Single(errors);
         Assert.Equal("Price", errors[0].ColumnName);
-        Assert.Equal("Decimal", errors[0].ExpectedType);
+        Assert.Equal("decimal", errors[0].ExpectedType);
     }
 
     [Fact]
