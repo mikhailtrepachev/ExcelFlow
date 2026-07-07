@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\ExcelFlow\ExcelFlow.csproj" />
+    <ProjectReference Include="..\ExcelFlow.SourceGenerators\ExcelFlow.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
 </Project>

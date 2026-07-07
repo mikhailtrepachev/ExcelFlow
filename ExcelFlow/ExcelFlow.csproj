@@ -8,11 +8,11 @@
         <LangVersion>latest</LangVersion>
 
         <PackageId>ExcelFlow</PackageId>
-        <Version>1.1.0</Version>
+        <Version>1.1.1</Version>
         <Authors>Mikhail Trepachev</Authors>
         <Company>Mikhail Trepachev</Company>
-        <Description>Ultra-fast, memory-efficient, and strictly typed Excel (.xlsx) reader and writer for modern .NET. Uses forward-only streaming and Expression Trees to process hundreds of thousands of rows with minimal RAM.</Description>
-        <PackageTags>excel;xlsx;openxml;linq;orm;streaming;performance;parser</PackageTags>
+        <Description>Native AOT, ultra-fast, strictly typed, and memory-efficient Excel (.xlsx) reader/writer for .NET. 100% Native AOT compatible with zero reflection.</Description>
+        <PackageTags>excel;xlsx;openxml;linq;orm;streaming;performance;parser;aot;source-generators</PackageTags>
 
         <RepositoryUrl>https://github.com/mikhailtrepachev/ExcelFlow</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
@@ -25,6 +25,7 @@
     <ItemGroup>
         <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
         <PackageReference Include="ExcelDataReader" Version="3.7.0" />
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
 
         
     </ItemGroup>
