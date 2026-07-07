@@ -79,9 +79,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
             ? new ExcelContext(_filePath)
             : new ExcelContext(_stream!);
 
-        IEnumerable<ExcelColumnDefinition<T>> definitions = _columnDefinitions ?? T.GetDefinitions();
-
-        foreach (T item in context.Worksheet<T>(definitions, _sheetName, _skipRows, _errorHandler, _validationRules))
+        foreach (T item in context.Worksheet<T>(_sheetName, _skipRows, _errorHandler, _validationRules))
         {
             yield return item;
         }
@@ -100,9 +98,7 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
             ? new ExcelContext(_filePath) 
             : new ExcelContext(_stream!);
 
-        IEnumerable<ExcelColumnDefinition<T>> definitions = _columnDefinitions ?? T.GetDefinitions();
-
-        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(definitions, _sheetName, _skipRows, _errorHandler, _validationRules, cancellationToken);
+        IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(_sheetName, _skipRows, _errorHandler, _validationRules, cancellationToken);
 
         await foreach (T item in asyncStream)
         {

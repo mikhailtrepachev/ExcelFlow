@@ -10,7 +10,7 @@ Built from the ground up to support **Native AOT** and **Assembly Trimming**, Ex
 
 ## 🚀 Key Features
 
-* **100% Native AOT & Trim Compatible:** Zero reflection at runtime. Mapping logic is converted into highly optimized, strongly typed delegates at compile time using Source Generators.
+* **100% Native AOT & Zero-Allocation:** Zero reflection and zero boxing at runtime. Parsers and Writers are fully generated at compile time as strictly typed instructions without any garbage allocations on the hot path.
 * **Extreme Performance & Low Memory:** Built on top of `ExcelDataReader` and `OpenXml` with a strict forward-only streaming approach. Read and write massive datasets without loading the entire file into RAM.
 * **Fluent Data Validation:** Define business rules inline. Filter out invalid rows automatically.
 * **Graceful Error Handling:** Catch parsing or type-conversion errors via `.OnError()` callbacks instead of dealing with random runtime exceptions.
@@ -28,6 +28,7 @@ dotnet add package ExcelFlow
 ### 1. Define your model
 
 Mark your class with `[ExcelFlowSerializable]` to trigger the Source Generator. Map properties to Excel columns using `[ExcelColumn]`.
+You can map columns by Name, by Index, and define whether they are required.
 
 ```csharp
 using ExcelFlow;
@@ -40,17 +41,17 @@ public partial class SalesRecord
     [ExcelColumn("Transaction ID")]
     public int TransactionId { get; set; }
 
-    [ExcelColumn("Product Name")]
+    [ExcelColumn("Product Name", IsRequired = true)] // Fail-fast if missing
     public string? ProductName { get; set; }
 
-    [ExcelColumn("Amount")]
+    [ExcelColumn(Index = 2)] // Direct mapping by column index (0-based)
     public decimal Amount { get; set; }
 
     [ExcelColumn("Date")]
     public DateTime Date { get; set; }
 }
 ```
-> **Note:** The class must be `partial` and cannot be nested inside another class, ensuring the Source Generator can extend it properly.
+> **Note:** The class must be `partial` to allow the Source Generator to extend it.
 
 ### 2. Reading Data
 
@@ -98,6 +99,35 @@ var asyncStream = Excel.Read<SalesRecord>(fileStream)
 await foreach (var record in asyncStream)
 {
     await _database.InsertAsync(record);
+}
+```
+
+## 💉 Dependency Injection (ASP.NET Core)
+
+ExcelFlow provides a built-in interface `IExcelFlowService` for easy Dependency Injection, making your code perfectly testable.
+
+```csharp
+// Program.cs
+builder.Services.AddExcelFlow();
+```
+
+Inject and use it in your controllers or services:
+
+```csharp
+public class ReportController
+{
+    private readonly IExcelFlowService _excel;
+
+    public ReportController(IExcelFlowService excel)
+    {
+        _excel = excel;
+    }
+
+    public async Task<IActionResult> Upload(IFormFile file)
+    {
+        var data = await _excel.Read<SalesRecord>(file.OpenReadStream()).ToListAsync();
+        return Ok(data);
+    }
 }
 ```
 
