@@ -8,26 +8,54 @@
         <LangVersion>latest</LangVersion>
 
         <PackageId>ExcelFlow</PackageId>
-        <Version>1.1.1</Version>
+        <Version>1.2.0</Version>
         <Authors>Mikhail Trepachev</Authors>
         <Company>Mikhail Trepachev</Company>
         <Description>Native AOT, ultra-fast, strictly typed, and memory-efficient Excel (.xlsx) reader/writer for .NET. 100% Native AOT compatible with zero reflection.</Description>
         <PackageTags>excel;xlsx;openxml;linq;orm;streaming;performance;parser;aot;source-generators</PackageTags>
+        <PackageReleaseNotes>
+v1.2.0
+- FIX: the source generator is now packed into the NuGet package (analyzers/dotnet/cs); previously consumers of the package did not receive generated mappers.
+- FIX: reading no longer throws NullReferenceException when a header cell is empty.
+- FIX: ExcelParseError.RowNumber now reports the real 1-based sheet row when SkipRows() is used.
+- FIX: DateTime values parsed from strings now use InvariantCulture (was CurrentCulture).
+- FIX: written DateTime cells now carry a date number format and display as dates in Excel (was raw OADate numbers).
+- FIX: nullable numeric/date properties (e.g. decimal?) no longer break the generated writer.
+- CHANGE: Excel.Read(Stream) no longer disposes the caller's stream; pass leaveOpen: false to opt into the old behavior.
+- CHANGE: OnError() can now be called multiple times; all handlers are invoked.
+- NEW: Guid and enum properties are supported natively.
+- NEW: compile-time diagnostics: EXF001 (class must be partial), EXF002 (unsupported property type), EXF003 (generic classes not supported).
+- NEW: files opened by path are opened with FileShare.Read, so a file open in Excel can still be read.
+        </PackageReleaseNotes>
 
         <RepositoryUrl>https://github.com/mikhailtrepachev/ExcelFlow</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
 
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
         <PackageReadmeFile>README.md</PackageReadmeFile>
-		<IsAotCompatible>true</IsAotCompatible>
+        <IsAotCompatible>true</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="DocumentFormat.OpenXml" Version="3.5.1" />
         <PackageReference Include="ExcelDataReader" Version="3.7.0" />
         <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.9" />
+    </ItemGroup>
 
-        
+    <ItemGroup>
+        <!-- Build the generator together with the library (not referenced as a runtime dependency) -->
+        <ProjectReference Include="..\ExcelFlow.SourceGenerators\ExcelFlow.SourceGenerators.csproj"
+                          ReferenceOutputAssembly="false"
+                          OutputItemType="Analyzer"
+                          PrivateAssets="all" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- Ship the source generator inside the package so consumers get compile-time mappers -->
+        <None Include="..\ExcelFlow.SourceGenerators\bin\$(Configuration)\netstandard2.0\ExcelFlow.SourceGenerators.dll"
+              Pack="true"
+              PackagePath="analyzers/dotnet/cs"
+              Visible="false" />
     </ItemGroup>
 
     <ItemGroup>

@@ -12,21 +12,24 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
     /// File path
     /// </summary>
     private readonly string? _filePath;
-    
+
     /// <summary>
     /// Stream
     /// </summary>
     private readonly Stream? _stream;
-    
+
     /// <summary>
-    /// Sheet name - default is "Sheet1"
+    /// If true, a caller-provided stream is left open after reading (the caller owns it).
+    /// </summary>
+    private readonly bool _leaveOpen;
+
+    /// <summary>
+    /// Sheet name - default is the first sheet
     /// </summary>
     private string? _sheetName = null;
-    
+
     private Action<ExcelParseError>? _errorHandler;
     private int _skipRows = 0;
-
-    private IEnumerable<ExcelColumnDefinition<T>>? _columnDefinitions;
 
     private readonly List<(Func<T, bool> Predicate, string ErrorMessage)> _validationRules = new();
 
@@ -35,10 +38,12 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
     /// </summary>
     /// <param name="filePath">File path</param>
     /// <param name="stream">Stream</param>
-    internal ExcelReaderBuilder(string? filePath = null, Stream? stream = null)
+    /// <param name="leaveOpen">Whether a caller-provided stream should stay open after reading</param>
+    internal ExcelReaderBuilder(string? filePath = null, Stream? stream = null, bool leaveOpen = true)
     {
         _filePath = filePath;
         _stream = stream;
+        _leaveOpen = leaveOpen;
     }
 
     /// <summary>
@@ -52,20 +57,31 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
         return this;
     }
 
+    /// <summary>
+    /// Skips the given number of rows before the header row (e.g. title/description rows)
+    /// </summary>
+    /// <param name="count">Number of rows to skip; must be non-negative</param>
+    /// <returns>ExcelReaderBuilder</returns>
     public ExcelReaderBuilder<T> SkipRows(int count)
     {
+        if (count < 0)
+            throw new ArgumentOutOfRangeException(nameof(count), count, "Row count to skip cannot be negative");
+
         _skipRows = count;
         return this;
     }
 
     /// <summary>
-    /// Error handler
+    /// Registers an error handler. Can be called multiple times; all handlers are invoked.
     /// </summary>
     /// <param name="handler">Error handler</param>
     /// <returns>Excel Reader builder</returns>
     public ExcelReaderBuilder<T> OnError(Action<ExcelParseError> handler)
     {
-        _errorHandler = handler;
+        if (handler is null)
+            throw new ArgumentNullException(nameof(handler));
+
+        _errorHandler += handler;
         return this;
     }
 
@@ -77,14 +93,14 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
     {
         using ExcelContext context = _filePath is not null
             ? new ExcelContext(_filePath)
-            : new ExcelContext(_stream!);
+            : new ExcelContext(_stream!, _leaveOpen);
 
         foreach (T item in context.Worksheet<T>(_sheetName, _skipRows, _errorHandler, _validationRules))
         {
             yield return item;
         }
     }
-    
+
     /// <summary>
     /// Returns an asynchronous stream (<see cref="IAsyncEnumerable{T}"/>) for lazy reading of Excel rows.
     /// The file is read sequentially, row by row, which minimizes RAM consumption.
@@ -94,9 +110,9 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
     public async IAsyncEnumerable<T> AsAsyncEnumerable(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        using ExcelContext context = _filePath != null 
-            ? new ExcelContext(_filePath) 
-            : new ExcelContext(_stream!);
+        using ExcelContext context = _filePath != null
+            ? new ExcelContext(_filePath)
+            : new ExcelContext(_stream!, _leaveOpen);
 
         IAsyncEnumerable<T> asyncStream = context.WorksheetAsync<T>(_sheetName, _skipRows, _errorHandler, _validationRules, cancellationToken);
 
@@ -125,13 +141,16 @@ public class ExcelReaderBuilder<T> where T : class, IExcelFlowSerializable<T>, n
         {
             list.Add(item);
         }
-        
+
         return list;
     }
 
+    /// <summary>
+    /// Reserved for future use.
+    /// </summary>
+    [Obsolete("WithMapping has no effect in the current version and will be redesigned in v2.0. Column mapping is resolved at compile time by the source generator.")]
     public ExcelReaderBuilder<T> WithMapping(IEnumerable<ExcelColumnDefinition<T>> definitions)
     {
-        _columnDefinitions = definitions;
         return this;
     }
 

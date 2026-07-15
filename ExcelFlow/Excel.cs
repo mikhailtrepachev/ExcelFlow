@@ -11,18 +11,31 @@ public static class Excel
     /// <param name="filePath">File path</param>
     /// <typeparam name="T">Table scheme</typeparam>
     /// <returns>Excel Reader builder</returns>
-    public static ExcelReaderBuilder<T> Read<T>(string filePath) where T : class, IExcelFlowSerializable<T>, new() 
+    public static ExcelReaderBuilder<T> Read<T>(string filePath) where T : class, IExcelFlowSerializable<T>, new()
         => new ExcelReaderBuilder<T>(filePath);
+
+
+    /// <summary>
+    /// Will read the stream and return a builder.
+    /// The stream is left open after reading: the caller owns it and is responsible for disposing it.
+    /// </summary>
+    /// <param name="stream">Stream</param>
+    /// <typeparam name="T">Table scheme</typeparam>
+    /// <returns>Excel Reader builder</returns>
+    public static ExcelReaderBuilder<T> Read<T>(Stream stream) where T : class, IExcelFlowSerializable<T>, new()
+        => new ExcelReaderBuilder<T>(null, stream, leaveOpen: true);
 
 
     /// <summary>
     /// Will read the stream and return a builder
     /// </summary>
     /// <param name="stream">Stream</param>
+    /// <param name="leaveOpen">If true (default), the stream stays open after reading and the caller owns it.
+    /// Pass false to let ExcelFlow dispose the stream once reading completes.</param>
     /// <typeparam name="T">Table scheme</typeparam>
     /// <returns>Excel Reader builder</returns>
-    public static ExcelReaderBuilder<T> Read<T>(Stream stream) where T : class, IExcelFlowSerializable<T>, new() 
-        => new ExcelReaderBuilder<T>(null, stream);
+    public static ExcelReaderBuilder<T> Read<T>(Stream stream, bool leaveOpen) where T : class, IExcelFlowSerializable<T>, new()
+        => new ExcelReaderBuilder<T>(null, stream, leaveOpen);
 
 
     /// <summary>
