@@ -24,7 +24,7 @@ class Program
         int rowCount = 500000;
 
         Console.WriteLine("==================================================");
-        Console.WriteLine("🚀 EXCELFLOW 1.1.0 : NATIVE AOT DEMO");
+        Console.WriteLine("🚀 EXCELFLOW 1.2.0 : NATIVE AOT DEMO");
         Console.WriteLine("==================================================\n");
 
         // ==========================================
@@ -58,18 +58,29 @@ class Program
         sw.Restart();
 
         int errorCount = 0;
+        List<ExcelParseError> sampleErrors = new();
 
         // Fluent API Read with Graceful Error Handling and AOT validation
         List<SalesRow> rowsFromFile = await Excel.Read<SalesRow>(filePath)
                                       .FromSheet(sheetName)
                                       .Validate(row => row.Amount > 0, "Amount must be strictly positive")
                                       .OnError(err => errorCount++)
+                                      .OnError(err => // handlers accumulate since 1.2.0
+                                      {
+                                          if (sampleErrors.Count < 3) sampleErrors.Add(err);
+                                      })
                                       .ToListAsync();
 
         long timeList = sw.ElapsedMilliseconds;
         long memAfterList = GC.GetTotalMemory(false);
         PrintResult("ExcelFlow (ToList)", timeList, memAfterList - memBeforeList);
         Console.WriteLine($"   > Valid Rows: {rowsFromFile.Count:N0} | Rejected Rows: {errorCount:N0}");
+
+        // RowNumber points at the real 1-based sheet row (fixed in 1.2.0)
+        foreach (ExcelParseError err in sampleErrors)
+        {
+            Console.WriteLine($"   > e.g. sheet row {err.RowNumber}: [{err.ColumnName}] {err.RawValue}");
+        }
 
         // ==========================================
         // 3. ASYNC STREAMING (LOW MEMORY FOOTPRINT)
@@ -80,17 +91,21 @@ class Program
         sw.Restart();
 
         decimal totalAmount = 0;
-        await using var fileStream = File.OpenRead(filePath);
 
-        var asyncStream = Excel.Read<SalesRow>(fileStream)
-                               .FromSheet(sheetName)
-                               .Validate(row => row.Amount > 0, "Amount must be strictly positive")
-                               .AsAsyncEnumerable();
-
-        // Processing rows one by one without loading the whole file into RAM
-        await foreach (var row in asyncStream)
+        // Since 1.2.0 ExcelFlow does not dispose caller-owned streams,
+        // so we scope the stream ourselves and release it before deleting the file.
+        await using (var fileStream = File.OpenRead(filePath))
         {
-            totalAmount += row.Amount;
+            var asyncStream = Excel.Read<SalesRow>(fileStream)
+                                   .FromSheet(sheetName)
+                                   .Validate(row => row.Amount > 0, "Amount must be strictly positive")
+                                   .AsAsyncEnumerable();
+
+            // Processing rows one by one without loading the whole file into RAM
+            await foreach (var row in asyncStream)
+            {
+                totalAmount += row.Amount;
+            }
         }
 
         long timeStream = sw.ElapsedMilliseconds;
