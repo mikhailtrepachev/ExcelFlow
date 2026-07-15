@@ -121,7 +121,7 @@ await foreach (var record in asyncStream)
 
 ### Stream ownership
 
-Since v1.1.3 ExcelFlow **does not dispose your stream** — you own it (this matches .NET conventions, e.g. `IFormFile.OpenReadStream()` in ASP.NET Core). If you want ExcelFlow to dispose the stream when reading completes, opt in explicitly:
+Since v1.2.0 ExcelFlow **does not dispose your stream** — you own it (this matches .NET conventions, e.g. `IFormFile.OpenReadStream()` in ASP.NET Core). If you want ExcelFlow to dispose the stream when reading completes, opt in explicitly:
 
 ```csharp
 var records = Excel.Read<SalesRecord>(stream, leaveOpen: false).ToList();
@@ -164,7 +164,7 @@ public class ReportController
 }
 ```
 
-## 🆕 What's new in 1.1.3
+## 🆕 What's new in 1.2.0
 
 * **Packaging fix:** the source generator now ships inside the NuGet package. If mappers were not generated for you on 1.1.x — this release fixes it.
 * **Correct row numbers:** `ExcelParseError.RowNumber` now reports the real 1-based sheet row, including when `SkipRows()` is used.
